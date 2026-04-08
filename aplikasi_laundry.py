@@ -5,14 +5,15 @@ from datetime import datetime
 
 st.set_page_config(page_title="Laundry SMAN Plus Riau", layout="wide")
 
-# HUBUNGKAN KE GOOGLE SHEETS
-# Ganti link di bawah ini dengan link 'Share' Google Sheets kamu (Pastikan akses: Editor)
-url = "https://docs.google.com/spreadsheets/d/10fNN90PsmRN61bYXv8lG6XlmiAx0VmO3IO7LFtXTKdc/edit?gid=0#gid=0"
+# MENGHUBUNGKAN KE GOOGLE SHEETS MENGGUNAKAN SECRETS
+# Masukkan link Google Sheets kamu di sini
+url_sheet = "https://docs.google.com/spreadsheets/d/10fNN90PsmRN61bYXv8lG6XlmiAx0VmO3IO7LFtXTKdc/edit?gid=0#gid=0"
+
+# Inisialisasi koneksi (dia akan otomatis membaca dari Secrets yang kamu isi tadi)
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Fungsi ambil data
 def load_data():
-    return conn.read(spreadsheet=url)
+    return conn.read(spreadsheet=url_sheet)
 
 # Navigasi
 st.sidebar.title("🧺 Menu Laundry")
@@ -34,7 +35,7 @@ if halaman == "Cek Status (Siswa)":
                         st.write(f"**Status Bayar:** {warna} {row['Bayar']}")
             else:
                 st.error("Nama tidak ditemukan.")
-    except:
+    except Exception as e:
         st.warning("Menunggu data masuk dari petugas...")
 
 # --- HALAMAN PETUGAS ---
@@ -61,12 +62,14 @@ else:
                     "Status": "Proses", "Bayar": status_bayar
                 }])
                 updated_df = pd.concat([data, new_row], ignore_index=True)
-                conn.update(spreadsheet=url, worksheet="Sheet1", data=updated_df)
-                st.success("Berhasil! Data tersimpan di Google Sheets.")
+                
+                # Mengirim data ke Google Sheets menggunakan koneksi Service Account
+                conn.update(spreadsheet=url_sheet, data=updated_df)
+                st.success("Berhasil! Data tersimpan permanen di Google Sheets.")
                 st.rerun()
         
         st.divider()
-        st.write("### Database Real-time (Google Sheets)")
+        st.write("### Database Real-time")
         st.dataframe(data, hide_index=True)
     else:
         st.info("Masukkan password di sidebar.")
