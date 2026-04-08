@@ -29,7 +29,7 @@ if halaman == "Cek Status (Siswa)":
     st.title("🧺 Cek Status Laundry Siswa")
     try:
         data = load_data()
-        nama_cari = st.text_input("Cari Nama Lengkap Kamu:")
+        nama_cari = st.text_input("Cari Nama Laundry Kamu:")
         if nama_cari:
             # Mencari nama (tidak peduli huruf besar/kecil)
             hasil = data[data['Nama'].astype(str).str.contains(nama_cari, case=False, na=False)]
@@ -41,7 +41,7 @@ if halaman == "Cek Status (Siswa)":
                         st.write(f"**Total Biaya:** {row['Total_Harga']}")
                         st.write(f"**Status Bayar:** {warna_bayar} {row['Bayar']}")
                         if row['Status'] == "Selesai":
-                            st.success("✅ Cucian siap diambil di loket asrama!")
+                            st.success("✅ Cucian siap diambil di laundry! Janlup bayar yaa...")
                         else:
                             st.info("⏳ Masih dalam proses pengerjaan.")
             else:
