@@ -61,7 +61,7 @@ else:
                     "Status": "Proses", "Bayar": status_bayar
                 }])
                 updated_df = pd.concat([data, new_row], ignore_index=True)
-                conn.update(spreadsheet=url, data=updated_df)
+                conn.update(spreadsheet=url, worksheet="Sheet1", data=updated_df)
                 st.success("Berhasil! Data tersimpan di Google Sheets.")
                 st.rerun()
         
