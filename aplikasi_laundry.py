@@ -3,19 +3,24 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
+# Konfigurasi Halaman
 st.set_page_config(page_title="Laundry SMAN Plus Riau", layout="wide")
 
-# Link Google Sheets kamu
-url_sheet = "https://docs.google.com/spreadsheets/d/10fNN90PsmRN61bYXv8lG6XlmiAx0VmO3IO7LFtXTKdc/edit?gid=0#gid=0"
+# 1. LINK GOOGLE SHEETS (Ganti dengan link spreadsheet kamu)
+url_sheet = "MASUKKAN_LINK_GOOGLE_SHEETS_KAMU_DI_SINI"
 
-# Inisialisasi koneksi
+# 2. INISIALISASI KONEKSI
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Fungsi ambil data dengan ttl=0 agar selalu segar
+# Fungsi ambil data dengan ttl=0 agar data selalu paling baru
 def load_data():
     return conn.read(spreadsheet=url_sheet, ttl=0)
 
-# Navigasi
+# 3. MEMORI HARGA (Agar harga per kg tidak reset saat simpan data)
+if 'harga_tetap' not in st.session_state:
+    st.session_state.harga_tetap = 6000
+
+# 4. NAVIGASI SIDEBAR
 st.sidebar.title("🧺 Menu Laundry")
 halaman = st.sidebar.radio("Pilih Akses:", ["Cek Status (Siswa)", "Panel Petugas (Login)"])
 
@@ -24,114 +29,131 @@ if halaman == "Cek Status (Siswa)":
     st.title("🧺 Cek Status Laundry Siswa")
     try:
         data = load_data()
-        nama_cari = st.text_input("Masukkan Nama :")
+        nama_cari = st.text_input("Cari Nama Lengkap Kamu:")
         if nama_cari:
+            # Mencari nama (tidak peduli huruf besar/kecil)
             hasil = data[data['Nama'].astype(str).str.contains(nama_cari, case=False, na=False)]
             if not hasil.empty:
                 for index, row in hasil.iterrows():
-                    warna = "🟢" if str(row['Bayar']) == "Sudah Lunas" else "🔴"
-                    with st.expander(f"{row['Tgl_Masuk']} - {row['Nama']} ({row['Status']})"):
+                    warna_bayar = "🟢" if str(row['Bayar']) == "Sudah Lunas" else "🔴"
+                    with st.expander(f"📦 Order {row['Tgl_Masuk']} - {row['Nama']} ({row['Status']})"):
                         st.write(f"**Berat:** {row['Berat']}")
                         st.write(f"**Total Biaya:** {row['Total_Harga']}")
-                        st.write(f"**Status Bayar:** {warna} {row['Bayar']}")
+                        st.write(f"**Status Bayar:** {warna_bayar} {row['Bayar']}")
+                        if row['Status'] == "Selesai":
+                            st.success("✅ Cucian siap diambil di loket asrama!")
+                        else:
+                            st.info("⏳ Masih dalam proses pengerjaan.")
             else:
-                st.error("Nama tidak ditemukan.")
+                st.error("Nama tidak ditemukan. Pastikan ejaan benar.")
     except:
-        st.info("Sistem sedang menyiapkan database...")
+        st.info("Menunggu petugas memasukkan data pertama...")
 
 # --- HALAMAN PETUGAS ---
 else:
-    st.title("👨‍🔧 Panel Petugas")
-    pw = st.sidebar.text_input("Password:", type="password")
+    st.title("👨‍🔧 Panel Petugas Laundry")
+    pw = st.sidebar.text_input("Password Petugas:", type="password")
     
     if pw == "plusriau123":
+        # Ambil data terbaru
         data = load_data()
         
-        # TABS UNTUK PETUGAS (Sekarang ada 3 Tab)
+        # Tabs untuk memisahkan fungsi petugas
         tab_input, tab_update, tab_hapus = st.tabs(["➕ Input Data", "🔄 Update Status & Bayar", "🗑️ Hapus Data"])
         
+        # TAB 1: INPUT DATA BARU
         with tab_input:
             with st.form("input_form", clear_on_submit=True):
-                st.subheader("➕ Input Order Baru")
-                nama = st.text_input("Nama Siswa")
-                col1, col2 = st.columns(2)
-                with col1:
-                    berat = st.number_input("Berat (kg)", 0.1, step=0.1)
-                with col2:
-                    harga_per_kg = st.number_input("Harga per Kg (Rp)", value=6000, step=500)
+                st.subheader("Tambah Order Laundry")
+                nama_input = st.text_input("Nama Lengkap Siswa")
+                c1, c2 = st.columns(2)
+                with c1:
+                    berat_input = st.number_input("Berat (kg)", 0.1, step=0.1)
+                with c2:
+                    # Mengambil nilai dari session_state agar tidak reset
+                    harga_input = st.number_input("Harga per Kg (Rp)", 
+                                                   value=st.session_state.harga_tetap, 
+                                                   step=500)
                 
-                sudah_bayar = st.checkbox("Sudah Bayar?")
+                bayar_input = st.checkbox("Sudah Bayar?")
                 
-                if st.form_submit_button("Simpan Data ke Cloud"):
-                    total = berat * harga_per_kg
-                    status_bayar = "Sudah Lunas" if sudah_bayar else "Belum Bayar"
+                if st.form_submit_button("Simpan Data"):
+                    # Update memori harga dengan input terakhir
+                    st.session_state.harga_tetap = harga_input
+                    
+                    total_biaya = berat_input * harga_input
+                    label_bayar = "Sudah Lunas" if bayar_input else "Belum Bayar"
+                    
+                    # Buat baris baru
                     new_row = pd.DataFrame([{
-                        "Nama": nama, "Berat": f"{berat} kg", "Total_Harga": f"Rp {total:,.0f}",
+                        "Nama": nama_input, 
+                        "Berat": f"{berat_input} kg", 
+                        "Total_Harga": f"Rp {total_biaya:,.0f}",
                         "Tgl_Masuk": datetime.now().strftime("%d/%m/%y"), 
-                        "Status": "Proses", "Bayar": status_bayar
+                        "Status": "Proses", 
+                        "Bayar": label_bayar
                     }])
+                    
+                    # Gabung data dan simpan ke Cloud
                     updated_df = pd.concat([data, new_row], ignore_index=True)
                     conn.update(spreadsheet=url_sheet, data=updated_df)
-                    st.success(f"Berhasil! Data {nama} tersimpan.")
+                    st.success(f"Data {nama_input} berhasil disimpan!")
                     st.rerun()
 
+        # TAB 2: UPDATE STATUS (REAL-TIME)
         with tab_update:
-            st.subheader("🔄 Update Status Laundry & Pembayaran")
+            st.subheader("Perbarui Status Laundry & Pembayaran")
             if not data.empty:
-                # Pilih baris data berdasarkan Nama dan Tanggal (agar unik jika nama sama)
-                data['Info_Opsi'] = data['Nama'] + " (" + data['Tgl_Masuk'] + ")"
-                opsi_pilihan = data['Info_Opsi'].tolist()
-                pilih_update = st.selectbox("Pilih Order Siswa:", opsi_pilihan)
+                # Kolom pembantu untuk memilih data secara spesifik
+                data['ID_Order'] = data['Nama'] + " (" + data['Tgl_Masuk'] + ")"
+                opsi = data['ID_Order'].tolist()
+                pilihan = st.selectbox("Pilih Siswa:", opsi)
                 
                 # Ambil index data yang dipilih
-                idx = data[data['Info_Opsi'] == pilih_update].index[0]
+                idx = data[data['ID_Order'] == pilihan].index[0]
                 
-                col_up1, col_up2 = st.columns(2)
-                with col_up1:
+                up_col1, up_col2 = st.columns(2)
+                with up_col1:
                     st.write(f"**Status Saat Ini:** {data.at[idx, 'Status']}")
-                    if st.button("Ubah ke SELESAI"):
+                    if st.button("Tandai SELESAI"):
                         data.at[idx, 'Status'] = "Selesai"
-                        # Hapus kolom bantuan sebelum simpan
-                        df_save = data.drop(columns=['Info_Opsi'])
-                        conn.update(spreadsheet=url_sheet, data=df_save)
-                        st.success("Status Laundry Diperbarui!")
+                        # Simpan tanpa kolom pembantu ID_Order
+                        conn.update(spreadsheet=url_sheet, data=data.drop(columns=['ID_Order']))
+                        st.success("Status diperbarui!")
                         st.rerun()
                 
-                with col_up2:
+                with up_col2:
                     st.write(f"**Pembayaran:** {data.at[idx, 'Bayar']}")
-                    if st.button("Ubah ke SUDAH LUNAS"):
+                    if st.button("Tandai SUDAH LUNAS"):
                         data.at[idx, 'Bayar'] = "Sudah Lunas"
-                        df_save = data.drop(columns=['Info_Opsi'])
-                        conn.update(spreadsheet=url_sheet, data=df_save)
+                        conn.update(spreadsheet=url_sheet, data=data.drop(columns=['ID_Order']))
                         st.balloons()
-                        st.success("Pembayaran Lunas!")
+                        st.success("Pembayaran dikonfirmasi!")
                         st.rerun()
             else:
-                st.info("Belum ada data untuk di-update.")
+                st.info("Database kosong.")
 
+        # TAB 3: HAPUS DATA
         with tab_hapus:
-            st.subheader("🗑️ Hapus Data Salah Input")
+            st.subheader("Hapus Data Salah Input")
             if not data.empty:
-                # Pastikan kolom Info_Opsi ada
-                if 'Info_Opsi' not in data.columns:
-                    data['Info_Opsi'] = data['Nama'] + " (" + data['Tgl_Masuk'] + ")"
+                if 'ID_Order' not in data.columns:
+                    data['ID_Order'] = data['Nama'] + " (" + data['Tgl_Masuk'] + ")"
                 
-                nama_hapus = st.selectbox("Pilih Data yang Akan Dihapus:", data['Info_Opsi'].tolist())
+                target_hapus = st.selectbox("Pilih Data untuk Dihapus:", data['ID_Order'].tolist())
                 
                 if st.button("Hapus Permanen", type="primary"):
-                    data_baru = data[data['Info_Opsi'] != nama_hapus]
-                    # Hapus kolom bantuan sebelum simpan
-                    df_save = data_baru.drop(columns=['Info_Opsi'])
-                    conn.update(spreadsheet=url_sheet, data=df_save)
-                    st.warning("Data telah dihapus!")
+                    data_clean = data[data['ID_Order'] != target_hapus]
+                    conn.update(spreadsheet=url_sheet, data=data_clean.drop(columns=['ID_Order']))
+                    st.warning(f"Data {target_hapus} telah dihapus dari server.")
                     st.rerun()
-            else:
-                st.info("Belum ada data yang bisa dihapus.")
         
+        # TABEL MONITORING (SELALU MUNCUL DI BAWAH)
         st.divider()
-        st.write("### 📊 Database Real-time")
-        # Tampilkan tabel tanpa kolom bantuan Info_Opsi
-        tampilan_tabel = data.drop(columns=['Info_Opsi']) if 'Info_Opsi' in data.columns else data
-        st.dataframe(tampilan_tabel, hide_index=True, use_container_width=True)
+        st.write("### 📊 Ringkasan Database Laundry")
+        # Hilangkan kolom pembantu saat tampil di tabel
+        tabel_final = data.drop(columns=['ID_Order']) if 'ID_Order' in data.columns else data
+        st.dataframe(tabel_final, hide_index=True, use_container_width=True)
+        
     else:
-        st.info("Silakan masukkan password di sidebar.")
+        st.info("🔐 Masukkan password di sidebar untuk mengakses Panel Petugas.")
