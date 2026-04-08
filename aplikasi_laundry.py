@@ -11,7 +11,7 @@ url_sheet = "https://docs.google.com/spreadsheets/d/10fNN90PsmRN61bYXv8lG6XlmiAx
 # Inisialisasi koneksi
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Fungsi ambil data dengan ttl=0 agar data langsung muncul setelah di-input
+# Fungsi ambil data dengan ttl=0 agar selalu segar
 def load_data():
     return conn.read(spreadsheet=url_sheet, ttl=0)
 
@@ -24,9 +24,8 @@ if halaman == "Cek Status (Siswa)":
     st.title("🧺 Cek Status Laundry Siswa")
     try:
         data = load_data()
-        nama_cari = st.text_input("Masukkan Nama Lengkap:")
+        nama_cari = st.text_input("Masukkan Nama:")
         if nama_cari:
-            # Pastikan kolom Nama dibaca sebagai teks
             hasil = data[data['Nama'].astype(str).str.contains(nama_cari, case=False, na=False)]
             if not hasil.empty:
                 for index, row in hasil.iterrows():
@@ -47,43 +46,55 @@ else:
     
     if pw == "plusriau123":
         data = load_data()
-            
-        with st.form("input_form", clear_on_submit=True):
-            st.subheader("➕ Input Order Baru")
-            nama = st.text_input("Nama Siswa")
-            col1, col2 = st.columns(2)
-            with col1:
-                berat = st.number_input("Berat (kg)", 0.1, step=0.1)
-            with col2:
-                # FITUR: Harga per kg bisa diubah-ubah petugas
-                harga_per_kg = st.number_input("Harga per Kg (Rp)", value=6000, step=500)
-            
-            sudah_bayar = st.checkbox("Sudah Bayar?")
-            
-            if st.form_submit_button("Simpan Data ke Cloud"):
-                total = berat * harga_per_kg
-                status_bayar = "Sudah Lunas" if sudah_bayar else "Belum Bayar"
+        
+        # TABS UNTUK PETUGAS
+        tab_input, tab_hapus = st.tabs(["➕ Input Data", "🗑️ Hapus Data"])
+        
+        with tab_input:
+            with st.form("input_form", clear_on_submit=True):
+                st.subheader("➕ Input Order Baru")
+                nama = st.text_input("Nama Siswa")
+                col1, col2 = st.columns(2)
+                with col1:
+                    berat = st.number_input("Berat (kg)", 0.1, step=0.1)
+                with col2:
+                    harga_per_kg = st.number_input("Harga per Kg (Rp)", value=6000, step=500)
                 
-                new_row = pd.DataFrame([{
-                    "Nama": nama, 
-                    "Berat": f"{berat} kg", 
-                    "Total_Harga": f"Rp {total:,.0f}",
-                    "Tgl_Masuk": datetime.now().strftime("%d/%m/%y"), 
-                    "Status": "Proses", 
-                    "Bayar": status_bayar
-                }])
+                sudah_bayar = st.checkbox("Sudah Bayar?")
                 
-                # Gabungkan data lama dengan data baru
-                updated_df = pd.concat([data, new_row], ignore_index=True)
+                if st.form_submit_button("Simpan Data ke Cloud"):
+                    total = berat * harga_per_kg
+                    status_bayar = "Sudah Lunas" if sudah_bayar else "Belum Bayar"
+                    
+                    new_row = pd.DataFrame([{
+                        "Nama": nama, "Berat": f"{berat} kg", "Total_Harga": f"Rp {total:,.0f}",
+                        "Tgl_Masuk": datetime.now().strftime("%d/%m/%y"), 
+                        "Status": "Proses", "Bayar": status_bayar
+                    }])
+                    
+                    updated_df = pd.concat([data, new_row], ignore_index=True)
+                    conn.update(spreadsheet=url_sheet, data=updated_df)
+                    st.success(f"Berhasil! Data {nama} tersimpan.")
+                    st.rerun()
+
+        with tab_hapus:
+            st.subheader("🗑️ Hapus Data Salah Input")
+            if not data.empty:
+                # Pilih nama yang ingin dihapus
+                list_nama = data['Nama'].unique().tolist()
+                nama_hapus = st.selectbox("Pilih Nama yang Akan Dihapus:", list_nama)
                 
-                # Update ke Sheets
-                conn.update(spreadsheet=url_sheet, data=updated_df)
-                st.success(f"Berhasil! Data {nama} sudah masuk ke Google Sheets.")
-                st.rerun() # Refresh aplikasi agar tabel di bawah langsung terisi
+                if st.button("Hapus Permanen dari Google Sheets", type="primary"):
+                    # Menghapus baris berdasarkan nama yang dipilih
+                    data_baru = data[data['Nama'] != nama_hapus]
+                    conn.update(spreadsheet=url_sheet, data=data_baru)
+                    st.warning(f"Data {nama_hapus} telah dihapus!")
+                    st.rerun()
+            else:
+                st.info("Belum ada data yang bisa dihapus.")
         
         st.divider()
-        st.write("### 📊 Database Real-time (Dari Google Sheets)")
-        # Menampilkan tabel yang selalu up-to-date
+        st.write("### 📊 Database Real-time")
         st.dataframe(data, hide_index=True, use_container_width=True)
     else:
-        st.info("Silakan masukkan password di sidebar untuk mengelola data.")
+        st.info("Silakan masukkan password di sidebar.")
