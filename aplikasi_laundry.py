@@ -96,7 +96,7 @@ else:
                     
                     # Gabung data dan simpan ke Cloud
                     updated_df = pd.concat([data, new_row], ignore_index=True)
-                    conn.update(spreadsheet=url_sheet, data=updated_df)
+                    conn.update(spreadsheet=url_sheet, data=updated_df, worksheet="Sheet1")
                     st.success(f"Data {nama_input} berhasil disimpan!")
                     st.rerun()
 
