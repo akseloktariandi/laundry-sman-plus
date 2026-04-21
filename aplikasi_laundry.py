@@ -7,7 +7,7 @@ from datetime import datetime
 st.set_page_config(page_title="Laundry SMAN Plus Riau", layout="wide")
 
 # 1. LINK GOOGLE SHEETS (Ganti dengan link spreadsheet kamu)
-url_sheet = "https://docs.google.com/spreadsheets/d/10fNN90PsmRN61bYXv8lG6XlmiAx0VmO3IO7LFtXTKdc/edit?gid=0#gid=0"
+url_sheet = "https://docs.google.com/spreadsheets/d/10fNN90PsmRN61bYXv8lG6XlmiAx0VmO3IO7LFtXTKdc/edit"
 
 # 2. INISIALISASI KONEKSI
 conn = st.connection("gsheets", type=GSheetsConnection)
